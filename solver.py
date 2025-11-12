@@ -10,22 +10,22 @@ from typing import Iterable, List, Tuple, Set, Dict
 import copy
 
 def _clauses_to_sets(clauses: Iterable[Iterable[int]]) -> List[Set[int]]:
-    """Convert list-of-lists clauses to list-of-sets (for efficient ops)."""
-    return [set(c) for c in clauses]
+  """Convert list-of-lists clauses to list-of-sets (for efficient ops)."""
+  return [set(c) for c in clauses]
 
 def _is_satisfied_clause(clause: Set[int], assignment: Dict[int, bool]) -> bool:
-    """Return True if clause is satisfied under assignment."""
-    for lit in clause:
-        var = abs(lit)
-        if var in assignment:
-            val = assignment[var]
-            if (lit > 0 and val) or (lit < 0 and not val):
-                return True
-    return False
+  """Return True if clause is satisfied under assignment."""
+  for lit in clause:
+    var = abs(lit)
+    if var in assignment:
+      val = assignment[var]
+      if (lit > 0 and val) or (lit < 0 and not val):
+        return True
+  return False
 
 def _contains_empty_clause(clauses: List[Set[int]]) -> bool:
-    """Return True if any clause is empty."""
-    return any(len(c) == 0 for c in clauses)
+  """Return True if any clause is empty."""
+  return any(len(c) == 0 for c in clauses)
 
 def _unit_propagate(clauses: List[Set[int]], assignment: Dict[int, bool]) -> Tuple[List[Set[int]], Dict[int, bool], bool]:
     """
@@ -35,54 +35,54 @@ def _unit_propagate(clauses: List[Set[int]], assignment: Dict[int, bool]) -> Tup
     Returns (new_clauses, new_assignment, conflict_flag)
     conflict_flag True indicates a contradiction encountered.
     """
-    clauses = clauses[:]  # shallow copy of list; sets inside are same objects but will be replaced when needed
+    clauses = clauses[:]
     assignment = dict(assignment)
+    
     while True:
-        # find unit clauses
-        unit_lits = []
+      # find unit clauses
+      unit_lits = []
+      for c in clauses:
+        if len(c) == 1:
+          unit_lits.append(next(iter(c)))
+
+      if not unit_lits:
+        break
+
+      for lit in unit_lits:
+        # check boolean of literal
+        var = abs(lit)
+        val = (lit > 0)
+
+        # check for conflict
+        if var in assignment:
+          if assignment[var] != val:
+              return clauses, assignment, True
+          else:
+              continue
+
+        # put variable in assignment
+        assignment[var] = val
+
+        # simplify clauses:
+        new_clauses = []
+        # loop through clauses and check if the contain the unit lit
         for c in clauses:
-            if len(c) == 1:
-                unit_lits.append(next(iter(c)))
-
-        if not unit_lits:
-            break
-
-        for lit in unit_lits:
-            var = abs(lit)
-            val = (lit > 0)
-
-            # if var already assigned and inconsistent => conflict
-            if var in assignment:
-                if assignment[var] != val:
-                    return clauses, assignment, True
-                else:
-                    # already assigned consistently; skip
-                    continue
-
-            # assign
-            assignment[var] = val
-
-            # simplify clauses:
-            new_clauses = []
-            for c in clauses:
-                if lit in c:
-                    # clause satisfied -> drop it
-                    continue
-                if -lit in c:
-                    # remove the falsified literal
-                    new_c = set(c)
-                    new_c.remove(-lit)
-                    if len(new_c) == 0:
-                        # empty clause -> conflict
-                        return clauses, assignment, True
-                    new_clauses.append(new_c)
-                else:
-                    new_clauses.append(c)
-            clauses = new_clauses
-            # after assigning one unit literal, we break to restart scanning for unit clauses
-            # (but outer while will pick up newly created unit clauses)
-        # continue loop to find newly created unit clauses
-
+          # unit clause satisfied, so remove
+          if lit in c:
+            continue
+          # literal falsified, so remove
+          if -lit in c:
+            new_c = set(c)
+            new_c.remove(-lit)
+            # empty clause, so conflict
+            if len(new_c) == 0:
+              return clauses, assignment, True
+            new_clauses.append(new_c)
+          # unit literal not in clause 
+          else:
+            new_clauses.append(c)
+        clauses = new_clauses
+        
     return clauses, assignment, False
 
 def _pure_literal_elim(clauses: List[Set[int]], assignment: Dict[int, bool]) -> Tuple[List[Set[int]], Dict[int, bool]]:
@@ -206,10 +206,11 @@ def _dpll(clauses: List[Set[int]], assignment: Dict[int, bool], num_vars: int) -
     Core recursive DPLL.
     Returns (sat_flag, assignment_if_sat)
     """
-    # 1. Unit propagation
+    # 1. Unit clause rule
     clauses, assignment, conflict = _unit_propagate(clauses, assignment)
     if conflict:
         return False, {}
+    
     # 2. Pure literal elimination
     clauses, assignment = _pure_literal_elim(clauses, assignment)
 
@@ -255,6 +256,7 @@ def solve_cnf(clauses: Iterable[Iterable[int]], num_vars: int) -> Tuple[str, Lis
     # Convert clauses to sets for internal processing
     clause_sets = _clauses_to_sets(clauses)
     sat, assignment = _dpll(clause_sets, {}, num_vars)
+    
     if sat:
         model = _build_model(assignment, num_vars)
         return "SAT", model
