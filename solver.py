@@ -27,6 +27,10 @@ def _contains_empty_clause(clauses: List[Set[int]]) -> bool:
   """Return True if any clause is empty."""
   return any(len(c) == 0 for c in clauses)
 
+# --------------------
+# Simplification
+# --------------------
+
 def _unit_propagate(clauses: List[Set[int]], assignment: Dict[int, bool]) -> Tuple[List[Set[int]], Dict[int, bool], bool]:
     """
     Perform unit propagation until fixpoint.
@@ -37,7 +41,7 @@ def _unit_propagate(clauses: List[Set[int]], assignment: Dict[int, bool]) -> Tup
     """
     clauses = clauses[:]
     assignment = dict(assignment)
-    
+
     while True:
       # find unit clauses
       unit_lits = []
@@ -85,6 +89,7 @@ def _unit_propagate(clauses: List[Set[int]], assignment: Dict[int, bool]) -> Tup
         
     return clauses, assignment, False
 
+
 def _pure_literal_elim(clauses: List[Set[int]], assignment: Dict[int, bool]) -> Tuple[List[Set[int]], Dict[int, bool]]:
     """
     Detect pure literals (only one polarity present) and assign them to satisfy all clauses where they appear.
@@ -94,45 +99,53 @@ def _pure_literal_elim(clauses: List[Set[int]], assignment: Dict[int, bool]) -> 
     assignment = dict(assignment)
 
     while True:
-        pos_occ: Dict[int,int] = {}
-        neg_occ: Dict[int,int] = {}
+      pos_occ: Dict[int,int] = {}
+      neg_occ: Dict[int,int] = {}
+      
+      for c in clauses:
+        for lit in c:
+          var = abs(lit)
+          # already assigned variable, so skip
+          if var in assignment:
+            continue
+          # add positive literal to the dict
+          if lit > 0:
+            pos_occ[var] = pos_occ.get(var,0) + 1
+          # add negative literal to the dict
+          else:
+            neg_occ[var] = neg_occ.get(var,0) + 1
+
+      pure_vars = []
+      for var in set(list(pos_occ.keys()) + list(neg_occ.keys())):
+        # already assigned, so continue
+        if var in assignment:
+          continue
+        p = pos_occ.get(var,0)
+        n = neg_occ.get(var,0)
+        # add true pure variable
+        if p > 0 and n == 0:
+          pure_vars.append((var, True))
+        # add false pure variable
+        elif n > 0 and p == 0:
+          pure_vars.append((var, False))
+
+      if not pure_vars:
+          break
+
+      # assign and simplify
+      for var, val in pure_vars:
+        # assign pure literal
+        assignment[var] = val
+        # update the clauses
+        lit = var if val else -var
+        new_clauses = []
         for c in clauses:
-            for lit in c:
-                var = abs(lit)
-                if var in assignment:
-                    # skip already assigned vars
-                    continue
-                if lit > 0:
-                    pos_occ[var] = pos_occ.get(var,0) + 1
-                else:
-                    neg_occ[var] = neg_occ.get(var,0) + 1
-
-        pure_vars = []
-        for var in set(list(pos_occ.keys()) + list(neg_occ.keys())):
-            if var in assignment:
-                continue
-            p = pos_occ.get(var,0)
-            n = neg_occ.get(var,0)
-            if p > 0 and n == 0:
-                pure_vars.append((var, True))
-            elif n > 0 and p == 0:
-                pure_vars.append((var, False))
-
-        if not pure_vars:
-            break
-
-        # assign and simplify
-        for var, val in pure_vars:
-            assignment[var] = val
-            lit = var if val else -var
-            new_clauses = []
-            for c in clauses:
-                if lit in c:
-                    # satisfied
-                    continue
-                # if -lit in c, we just keep c (no need to remove -lit because assignment is global)
-                new_clauses.append(c)
-            clauses = new_clauses
+          # clause is satisfied, so skip
+          if lit in c:
+            continue
+          # clause does not have pure literal so don't change
+          new_clauses.append(c)
+        clauses = new_clauses
 
     return clauses, assignment
 
@@ -146,31 +159,34 @@ def _choose_branch_var(clauses: List[Set[int]], assignment: Dict[int, bool], num
     neg_count = {}
 
     for c in clauses:
-        for lit in c:
-            var = abs(lit)
-            if var in assignment:
-                continue
-            if lit > 0:
-                pos_count[var] = pos_count.get(var, 0) + 1
-            else:
-                neg_count[var] = neg_count.get(var, 0) + 1
+      for lit in c:
+        var = abs(lit)
+        # already assigned, so skip
+        if var in assignment:
+            continue
+        # count positive occurences of literal
+        if lit > 0:
+            pos_count[var] = pos_count.get(var, 0) + 1
+        # count negative occurences of literal
+        else:
+            neg_count[var] = neg_count.get(var, 0) + 1
 
     best_var = None
     best_score = -1
     best_pref = True
 
-    # consider all variables 1..num_vars (some may have zero count)
     for var in range(1, num_vars + 1):
-        if var in assignment:
-            continue
-        p = pos_count.get(var, 0)
-        n = neg_count.get(var, 0)
-        score = p + n
-        if score > best_score:
-            best_score = score
-            best_var = var
-            best_pref = (p >= n)  # prefer the polarity that appears more often
-    # if everything assigned (best_var None) it will be handled by caller
+      if var in assignment:
+        continue
+      p = pos_count.get(var, 0)
+      n = neg_count.get(var, 0)
+      score = p + n
+      # update best score
+      if score > best_score:
+        best_score = score
+        best_var = var
+        best_pref = (p >= n)
+
     return best_var, best_pref
 
 def _simplify_after_assignment(clauses: List[Set[int]], lit: int) -> List[Set[int]]:
@@ -180,14 +196,17 @@ def _simplify_after_assignment(clauses: List[Set[int]], lit: int) -> List[Set[in
     """
     new_clauses = []
     for c in clauses:
-        if lit in c:
-            continue
-        if -lit in c:
-            new_c = set(c)
-            new_c.remove(-lit)
-            new_clauses.append(new_c)
-        else:
-            new_clauses.append(c)
+      # clause satisfied, so skip
+      if lit in c:
+        continue
+      # remove the negations of the literal from the clause
+      if -lit in c:
+        new_c = set(c)
+        new_c.remove(-lit)
+        new_clauses.append(new_c)
+      # clause not affected by literal
+      else:
+        new_clauses.append(c)
     return new_clauses
 
 def _build_model(assignment: Dict[int, bool], num_vars: int) -> List[int]:
@@ -197,8 +216,8 @@ def _build_model(assignment: Dict[int, bool], num_vars: int) -> List[int]:
     """
     model = []
     for v in range(1, num_vars + 1):
-        val = assignment.get(v, False)
-        model.append(v if val else -v)
+      val = assignment.get(v, False)
+      model.append(v if val else -v)
     return model
 
 def _dpll(clauses: List[Set[int]], assignment: Dict[int, bool], num_vars: int) -> Tuple[bool, Dict[int, bool]]:
@@ -223,23 +242,24 @@ def _dpll(clauses: List[Set[int]], assignment: Dict[int, bool], num_vars: int) -
 
     # 4. Choose variable to branch (heuristic)
     var, pref_val = _choose_branch_var(clauses, assignment, num_vars)
+    # if all variables already assigned, but not all clauses satisfied
     if var is None:
-        # no unassigned variable left but clauses still exist -> unsat (shouldn't normally happen)
-        return False, {}
+      return False, {}
 
     # 5. Branch: try preferred polarity first
     for try_val in (pref_val, not pref_val):
-        lit = var if try_val else -var
-        # copy data structures for recursion
-        new_assignment = dict(assignment)
-        new_assignment[var] = try_val
-        new_clauses = _simplify_after_assignment(clauses, lit)
-        # check immediate conflict
-        if any(len(c) == 0 for c in new_clauses):
-            continue
-        sat, final_assignment = _dpll(new_clauses, new_assignment, num_vars)
-        if sat:
-            return True, final_assignment
+      lit = var if try_val else -var
+      
+      new_assignment = dict(assignment)
+      new_assignment[var] = try_val
+      new_clauses = _simplify_after_assignment(clauses, lit)
+      # if empty clause, not satisfied,backtrack, try oher value
+      if any(len(c) == 0 for c in new_clauses):
+        continue
+      # recursion, move to next level in our tree
+      sat, final_assignment = _dpll(new_clauses, new_assignment, num_vars)
+      if sat:
+        return True, final_assignment
 
     return False, {}
 
@@ -253,15 +273,15 @@ def solve_cnf(clauses: Iterable[Iterable[int]], num_vars: int) -> Tuple[str, Lis
     Returns:
       ("SAT", model_list) or ("UNSAT", None)
     """
-    # Convert clauses to sets for internal processing
+  
     clause_sets = _clauses_to_sets(clauses)
     sat, assignment = _dpll(clause_sets, {}, num_vars)
     
     if sat:
-        model = _build_model(assignment, num_vars)
-        return "SAT", model
+      model = _build_model(assignment, num_vars)
+      return "SAT", model
     else:
-        return "UNSAT", None
+      return "UNSAT", None
 
 def solve_cnf(clauses: Iterable[Iterable[int]], num_vars: int) -> Tuple[str, List[int] | None]:
     """
