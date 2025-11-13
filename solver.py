@@ -7,38 +7,17 @@ Implement: solve_cnf(clauses) -> (status, model_or_None)"""
 
 
 from typing import Iterable, List, Tuple, Set, Dict
-import copy
 
-def _clauses_to_sets(clauses: Iterable[Iterable[int]]) -> List[Set[int]]:
-  """Convert list-of-lists clauses to list-of-sets (for efficient ops)."""
+
+def convert_clauses(clauses):
+  """Convert clauses to a list-of-sets"""
   return [set(c) for c in clauses]
 
-def _is_satisfied_clause(clause: Set[int], assignment: Dict[int, bool]) -> bool:
-  """Return True if clause is satisfied under assignment."""
-  for lit in clause:
-    var = abs(lit)
-    if var in assignment:
-      val = assignment[var]
-      if (lit > 0 and val) or (lit < 0 and not val):
-        return True
-  return False
-
-def _contains_empty_clause(clauses: List[Set[int]]) -> bool:
-  """Return True if any clause is empty."""
-  return any(len(c) == 0 for c in clauses)
-
 # --------------------
-# Simplification
+# Simplification rules
 # --------------------
 
-def _unit_propagate(clauses: List[Set[int]], assignment: Dict[int, bool]) -> Tuple[List[Set[int]], Dict[int, bool], bool]:
-    """
-    Perform unit propagation until fixpoint.
-    - clauses: list of clause-sets (modified copy)
-    - assignment: dict var->bool (modified copy)
-    Returns (new_clauses, new_assignment, conflict_flag)
-    conflict_flag True indicates a contradiction encountered.
-    """
+def unit_clause_rule(clauses, assignment):
     clauses = clauses[:]
     assignment = dict(assignment)
 
@@ -90,11 +69,7 @@ def _unit_propagate(clauses: List[Set[int]], assignment: Dict[int, bool]) -> Tup
     return clauses, assignment, False
 
 
-def _pure_literal_elim(clauses: List[Set[int]], assignment: Dict[int, bool]) -> Tuple[List[Set[int]], Dict[int, bool]]:
-    """
-    Detect pure literals (only one polarity present) and assign them to satisfy all clauses where they appear.
-    Repeat until no more pure literals are found.
-    """
+def pure_literal_rule(clauses, assignment):
     clauses = clauses[:]
     assignment = dict(assignment)
 
@@ -149,11 +124,16 @@ def _pure_literal_elim(clauses: List[Set[int]], assignment: Dict[int, bool]) -> 
 
     return clauses, assignment
 
-def _choose_branch_var(clauses: List[Set[int]], assignment: Dict[int, bool], num_vars: int) -> Tuple[int, bool]:
+
+# --------------------
+# Split
+# --------------------
+
+def split(clauses, assignment, num_vars):
     """
-    Choose a branching variable and preferred polarity.
-    We implement a DLCS-like heuristic: choose var with maximum (pos_count + neg_count).
-    Return (var, preferred_value).
+    Chosen heuristic for splitting: DLCS
+    Dynamic largest combined sum: CP(v) + CN(v) (= most frequent v)
+    If CP(v)>CN(v) then v=1 else v=0
     """
     pos_count = {}
     neg_count = {}
@@ -189,10 +169,16 @@ def _choose_branch_var(clauses: List[Set[int]], assignment: Dict[int, bool], num
 
     return best_var, best_pref
 
-def _simplify_after_assignment(clauses: List[Set[int]], lit: int) -> List[Set[int]]:
+
+# --------------------
+# Simplify
+# --------------------
+def check_empty_clause(clauses):
+  return any(len(c) == 0 for c in clauses)
+
+def simplify_after_assignment(clauses, lit):
     """
     Given assignment of literal `lit` to True, remove satisfied clauses and remove -lit from other clauses.
-    Returns new clauses list. Does NOT detect empty clause (caller should check).
     """
     new_clauses = []
     for c in clauses:
@@ -209,78 +195,79 @@ def _simplify_after_assignment(clauses: List[Set[int]], lit: int) -> List[Set[in
         new_clauses.append(c)
     return new_clauses
 
-def _build_model(assignment: Dict[int, bool], num_vars: int) -> List[int]:
-    """
-    Build a full DIMACS-style model (list of ints 1..num_vars).
-    Unassigned variables are set to False (negative) for determinism.
-    """
-    model = []
-    for v in range(1, num_vars + 1):
-      val = assignment.get(v, False)
-      model.append(v if val else -v)
-    return model
 
-def _dpll(clauses: List[Set[int]], assignment: Dict[int, bool], num_vars: int) -> Tuple[bool, Dict[int, bool]]:
-    """
-    Core recursive DPLL.
-    Returns (sat_flag, assignment_if_sat)
-    """
+# --------------------
+# DPLL
+# --------------------
+
+def dpll(clauses, assignment, num_vars):
+    """Recursive DPLL."""
     # 1. Unit clause rule
-    clauses, assignment, conflict = _unit_propagate(clauses, assignment)
+    clauses, assignment, conflict = unit_clause_rule(clauses, assignment)
     if conflict:
         return False, {}
     
     # 2. Pure literal elimination
-    clauses, assignment = _pure_literal_elim(clauses, assignment)
+    clauses, assignment = pure_literal_rule(clauses, assignment)
 
     # 3. Check base cases
     if not clauses:
         # no clauses -> satisfied
         return True, assignment
-    if _contains_empty_clause(clauses):
+    if check_empty_clause(clauses):
         return False, {}
 
-    # 4. Choose variable to branch (heuristic)
-    var, pref_val = _choose_branch_var(clauses, assignment, num_vars)
+    # 4. Choose variable to split (heuristic)
+    var, pref_val = split(clauses, assignment, num_vars)
     # if all variables already assigned, but not all clauses satisfied
     if var is None:
       return False, {}
 
-    # 5. Branch: try preferred polarity first
+    # 5. SPlit: try preferred polarity first
     for try_val in (pref_val, not pref_val):
       lit = var if try_val else -var
       
       new_assignment = dict(assignment)
       new_assignment[var] = try_val
-      new_clauses = _simplify_after_assignment(clauses, lit)
+      new_clauses = simplify_after_assignment(clauses, lit)
       # if empty clause, not satisfied,backtrack, try oher value
       if any(len(c) == 0 for c in new_clauses):
         continue
       # recursion, move to next level in our tree
-      sat, final_assignment = _dpll(new_clauses, new_assignment, num_vars)
+      sat, final_assignment = dpll(new_clauses, new_assignment, num_vars)
       if sat:
         return True, final_assignment
 
     return False, {}
 
-def solve_cnf(clauses: Iterable[Iterable[int]], num_vars: int) -> Tuple[str, List[int] | None]:
+def build_model(assignment, num_vars):
     """
-    Public solver function required by the assignment.
+    Build a full DIMACS-style model
+    Unassigned variables are set to False
+    """
+    model = []
+    for v in range(1, num_vars + 1):
+        val = assignment.get(v, False)
+        model.append(v if val else -v)
+    return model
 
-    clauses: iterable of lists of ints
-    num_vars: number of variables
-
-    Returns:
-      ("SAT", model_list) or ("UNSAT", None)
+def solve_cnf(clauses, num_vars):
+    """
+    Implement your SAT solver here.
+    Must return:
+      ("SAT", model)  where model is a list of ints (DIMACS-style), or
+      ("UNSAT", None)
     """
   
-    clause_sets = _clauses_to_sets(clauses)
-    sat, assignment = _dpll(clause_sets, {}, num_vars)
+    clause_sets = convert_clauses(clauses)
+    sat, assignment = dpll(clause_sets, {}, num_vars)
     
     if sat:
-      model = _build_model(assignment, num_vars)
+      model = build_model(assignment, num_vars)
       return "SAT", model
     else:
       return "UNSAT", None
 
+# python main.py --in puzzle.txt
+# command to run in terminal: python3 main.py --in ../"EXAMPLE puzzles (input)"/example_n9.txt  --out example.cnf
 
