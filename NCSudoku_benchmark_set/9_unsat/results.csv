@@ -1,0 +1,11 @@
+size,type,index,conflicts,decisions,time_sec,result,file
+9,unsat,0,248,482,< 0.1,UNSAT,9_unsat/unsat_000.txt
+9,unsat,1,1122,1892,< 0.1,UNSAT,9_unsat/unsat_001.txt
+9,unsat,2,482,773,< 0.1,UNSAT,9_unsat/unsat_002.txt
+9,unsat,3,554,1056,< 0.1,UNSAT,9_unsat/unsat_003.txt
+9,unsat,4,862,1400,< 0.1,UNSAT,9_unsat/unsat_004.txt
+9,unsat,5,424,730,< 0.1,UNSAT,9_unsat/unsat_005.txt
+9,unsat,6,565,1047,< 0.1,UNSAT,9_unsat/unsat_006.txt
+9,unsat,7,1248,2179,< 0.1,UNSAT,9_unsat/unsat_007.txt
+9,unsat,8,784,1270,< 0.1,UNSAT,9_unsat/unsat_008.txt
+9,unsat,9,278,600,< 0.1,UNSAT,9_unsat/unsat_009.txt

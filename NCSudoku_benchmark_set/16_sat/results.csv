@@ -1,0 +1,11 @@
+size,type,index,conflicts,decisions,time_sec,result,file
+16,sat,0,768,104362,< 1,SAT,16_sat/sat_000.txt
+16,sat,1,840,295520,< 30,SAT,16_sat/sat_001.txt
+16,sat,2,780,181254,< 5,SAT,16_sat/sat_002.txt
+16,sat,3,104,105581,< 1,SAT,16_sat/sat_003.txt
+16,sat,4,144,109908,< 1,SAT,16_sat/sat_004.txt
+16,sat,5,180,138057,< 5,SAT,16_sat/sat_005.txt
+16,sat,6,384,127381,< 30,SAT,16_sat/sat_006.txt
+16,sat,7,362,131487,< 5,SAT,16_sat/sat_007.txt
+16,sat,8,209,127037,< 5,SAT,16_sat/sat_008.txt
+16,sat,9,38,101771,< 1,SAT,16_sat/sat_009.txt

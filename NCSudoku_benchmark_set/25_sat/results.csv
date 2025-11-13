@@ -1,0 +1,6 @@
+size,type,index,conflicts,decisions,time_sec,result,file
+25,sat,0,57,448988,< 5,SAT,25_sat/sat_000.txt
+25,sat,1,86,401012,< 5,SAT,25_sat/sat_001.txt
+25,sat,2,131,700025,< 30,SAT,25_sat/sat_002.txt
+25,sat,3,56,1382500,< 30,SAT,25_sat/sat_003.txt
+25,sat,4,67,383153,< 5,SAT,25_sat/sat_004.txt
