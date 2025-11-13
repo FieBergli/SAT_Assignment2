@@ -19,7 +19,7 @@ Behavior:
 import argparse
 from typing import Tuple, Iterable
 from encoder import to_cnf
-from solver import solve_cnf
+from solver_clean import solve_cnf
 
 def parse_args():
     p = argparse.ArgumentParser()
