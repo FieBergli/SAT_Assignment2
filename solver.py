@@ -283,11 +283,4 @@ def solve_cnf(clauses: Iterable[Iterable[int]], num_vars: int) -> Tuple[str, Lis
     else:
       return "UNSAT", None
 
-def solve_cnf(clauses: Iterable[Iterable[int]], num_vars: int) -> Tuple[str, List[int] | None]:
-    """
-    Implement your SAT solver here.
-    Must return:
-      ("SAT", model)  where model is a list of ints (DIMACS-style), or
-      ("UNSAT", None)
-    """
-    raise NotImplementedError
+
